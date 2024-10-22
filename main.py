@@ -11,7 +11,7 @@ import pandas as pd
 
 # Опции хрома
 chrome_options = Options()
-# chrome_options.add_argument("--headless")  # Ensure GUI is off
+chrome_options.add_argument("--headless")  # отлючаем ГУИ
 chrome_options.add_experimental_option("prefs", {"geolocation": "disabled"})
 chrome_options.add_argument("--no-sandbox")
 chrome_options.add_argument("--disable-dev-shm-usage")
@@ -34,16 +34,14 @@ print(column_values)
 # Вписываем URL
 url = "https://zakupki.gov.ru/epz/contract/search/results.html"
 
-# Открываем URL
 driver.get(url)
 
 data = []
 
 for value in column_values:
-    # Очищаем строку поиска
     driver.get(url)
  
-    # Ищем, убиваем модальные окна
+# Ищем, убиваем модальные окна
     wait = WebDriverWait(driver, 10)
     try:
         WebDriverWait(driver, 10).until(
@@ -62,6 +60,8 @@ for value in column_values:
     search_field.send_keys(value)
     
     wait = WebDriverWait(driver, 10)
+
+# работа с поиском
     
     search_button = driver.find_element(By.CSS_SELECTOR, "#quickSearchForm_header > section.content.content-search-registry-bar > div > div > div > div:nth-child(2) > div > div > button")
     
@@ -88,8 +88,7 @@ for value in column_values:
         print('record found')
 
     articles = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "#quickSearchForm_header > section.content.content-search-registry-block > div > div > div.col-9.search-results > div.search-registry-entrys-block > div > div.row.no-gutters.registry-entry__form.mr-0 > div.col-8.pr-0.mr-21px > div.registry-entry__header > div > div.registry-entry__header-mid__number > a")))
-    
-# экстрактим hrefы
+# экстрактим хрефы
     hrefs = [article.get_attribute("href") for article in articles if article.get_attribute("href")]
 
     for href in hrefs:
@@ -105,7 +104,6 @@ for value in column_values:
 
         if new_url:
             driver.get(new_url)
-# ждем
             wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 # Номер в реестре       
             reestrNumber = driver.find_element(By.CSS_SELECTOR, 'body > div.cardWrapper.outerWrapper > div > div.cardHeaderBlock > div:nth-child(3) > div.cardMainInfo.row > div.sectionMainInfo.borderRight.col-6 > div.sectionMainInfo__header > div > span.cardMainInfo__purchaseLink.distancedText > a')
@@ -131,7 +129,18 @@ for value in column_values:
                 print(contDateDone)
             except Exception as e:
                 print('contDateDone: not found')
-                payed = 0  
+                payed = 0
+# Вывод цены контракта
+            contPrice = 0 
+            wait = WebDriverWait(driver, 10)
+            try:            
+                contPrice = driver.find_element(By.CSS_SELECTOR, 'body > div.cardWrapper.outerWrapper > div > div.cardHeaderBlock > div:nth-child(3) > div.cardMainInfo.row > div.sectionMainInfo.borderRight.col-3.colSpaceBetween > div.price > span.cardMainInfo__content.cost')
+                if contPrice:
+                    contPrice = contPrice.text
+                    print(contPrice)
+            except Exception as e:
+                print('contPrice not found')
+                payAmount = 0              
 # Проверка таба с ценами 
             wait = WebDriverWait(driver, 10)
             try:
@@ -150,7 +159,7 @@ for value in column_values:
                     'Фактически оплачено': 'информация отсутствует',
                     'Дата заключения контракта' :contDate,
                     'Срок исполнения': contDateDone,
-                    'URL': [new_url]
+                    'URL': new_url
                 }
                 data.append(page_data)
                 continue
@@ -159,9 +168,7 @@ for value in column_values:
             print(f"Title of the new page: {driver.title}")
 
             page_title = driver.title
-            
-# Цена контракта 
-            contPrice = 0 
+# Вывод стоимости и факта оплаты из таба 
             payAmount = 0
             payed = 0
             wait = WebDriverWait(driver, 10)  
@@ -170,9 +177,6 @@ for value in column_values:
 
                 for priceSection in priceSections:
                     section__title = priceSection.find_element(By.CSS_SELECTOR, ".section__title")                    
-                    if section__title.text == "Цена контракта, ₽": 
-                        contPrice = priceSection.find_element(By.CSS_SELECTOR, ".section__info").text
-                        print(contPrice)
                     if section__title.text == "Стоимость исполненных поставщиком (подрядчиком, исполнителем) обязательств, ₽": 
                         payAmount = priceSection.find_element(By.CSS_SELECTOR, ".section__info").text
                         print(payAmount)
@@ -181,8 +185,8 @@ for value in column_values:
                         print(payed)
             except Exception as e:
                 print('priceSections: not found')
-                print(e)
-             
+                print(e) 
+
 # page_url
             page_data = {
                 'Номер в реестре': reestrNumber.text,
@@ -193,25 +197,28 @@ for value in column_values:
                 'Фактически оплачено': payed,
                 'Дата заключения контракта' :contDate,
                 'Срок исполнения': contDateDone,
-                'URL': [new_url]
+                'URL': new_url
                 
             }
             data.append(page_data)
 
-            # Navigate back to the original page
+# страница назад
         driver.back()
         element_locator = (By.CSS_SELECTOR, "#searchString")
         element = WebDriverWait(driver, 10).until(EC.presence_of_element_located(element_locator))
         element.send_keys(Keys.CONTROL + "a")
         element.send_keys(Keys.DELETE)
 
- # Закрываем браузер (отключено)
-  #  driver.quit()
+ # закрываем браузер
+    driver.quit()
 
-    # Перенос в датафреймы
+# конвертируем
     df = pd.DataFrame(data)
 
-    # Создаем эксельку
+# создаем xls
     writer = pd.ExcelWriter('output.xlsx')
     df.to_excel(writer, index=False)
     writer.close()
+print('###############################################')
+print('########### Парсинг завершен успено ###########')
+print('###############################################')
