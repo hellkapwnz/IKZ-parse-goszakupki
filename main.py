@@ -209,8 +209,7 @@ for value in column_values:
         element.send_keys(Keys.CONTROL + "a")
         element.send_keys(Keys.DELETE)
 
- # закрываем браузер
-    driver.quit()
+
 
 # конвертируем
     df = pd.DataFrame(data)
@@ -219,6 +218,8 @@ for value in column_values:
     writer = pd.ExcelWriter('output.xlsx')
     df.to_excel(writer, index=False)
     writer.close()
+# закрываем браузер
+driver.quit()
 print('################################################')
 print('########### Парсинг завершен успешно ###########')
 print('################################################')
